@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Shadow Lexicon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="style.css">
+
+    <!-- p5.js -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/p5.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/addons/p5.sound.min.js"></script>
+
+    <!-- TensorFlow.js + Teachable Machine Image -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  </head>
+  <body>
+    <main></main>
+    <aside id="hud" aria-live="polite">
+      <div class="hud-title">live prediction</div>
+      <div id="hud-predictions">
+        <div class="hud-row dim">
+          <span>waiting for prediction...</span>
+          <span></span>
+        </div>
+      </div>
+      <div class="hud-info">
+        <div>state: <span id="hud-state">idle</span></div>
+        <div>top confidence: <span id="hud-confidence">0.0%</span></div>
+        <div id="hud-active-panel" hidden>
+          <div class="hud-metrics">
+            <div class="hud-metric">
+              <div class="hud-metric-label">Scene Reset</div>
+              <div class="hud-metric-value" id="hud-scene-value">0.0s</div>
+              <div class="hud-metric-sub" id="hud-scene-sub">0% complete</div>
+            </div>
+            <div class="hud-metric">
+              <div class="hud-metric-label">Release</div>
+              <div class="hud-metric-value" id="hud-release-value">LOCKED</div>
+              <div class="hud-metric-sub" id="hud-release-sub">0.0% / 35%</div>
+            </div>
+          </div>
+          <div class="hud-bar">
+            <div class="hud-bar-label">scene progress</div>
+            <div class="hud-track">
+              <div class="hud-fill hud-fill-scene" id="hud-scene-fill"></div>
+            </div>
+          </div>
+          <div class="hud-bar">
+            <div class="hud-bar-label" id="hud-release-label">release locked</div>
+            <div class="hud-track">
+              <div class="hud-fill hud-fill-release" id="hud-release-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <script src="book.js"></script>
+    <script src="city.js"></script>
+    <script src="time.js"></script>
+    <script src="memory.js"></script>
+    <script src="shadow.js"></script>
+    <script src="sketch.js"></script>
+  </body>
+</html>

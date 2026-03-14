@@ -1,0 +1,468 @@
+// ============================================================
+// Shadow Lexicon
+// sketch.js - main controller
+// Handles the webcam, recognition, state management, and animation modules
+// ============================================================
+
+// -- 1. Local Teachable Machine model --------------------------------
+const MODEL_URL = './models/79ZGnRrSq/';
+const LABEL_MAP = {
+  book: 'book',
+  city: 'city',
+  time: 'time',
+  memory: 'memory',
+  shadow: 'shadow',
+};
+
+// -- 2. Poem lines ---------------------------------------------------
+let poemLines = {};
+
+// -- State -----------------------------------------------------------
+let model, webcam;
+let isModelLoaded = false;
+let currentLabel  = 'background';
+let confidence    = 0;
+let currentLabelConfidence = 0;
+let predictionSnapshot = [];
+let candidateLabel = 'background';
+let candidateHits = 0;
+let hasLockedPrediction = false;
+let clearFrames = 0;
+
+let activeState = 'idle';   // idle / book / city / time / memory / shadow
+let stateTimer  = 0;
+let fadeAlpha   = 0;
+let hudEl;
+let hudPredictionsEl;
+let hudStateEl;
+let hudConfidenceEl;
+let hudActivePanelEl;
+let hudSceneValueEl;
+let hudSceneSubEl;
+let hudReleaseValueEl;
+let hudReleaseSubEl;
+let hudSceneFillEl;
+let hudReleaseLabelEl;
+let hudReleaseFillEl;
+
+const triggerThreshold = 0.55;
+const releaseThreshold = 0.35;
+const requiredSwitchHits = 2;
+const clearFramesRequired = 6;
+const sceneDuration = 480;
+const labelThresholds = {
+  shadow: 0.72,
+};
+const labelBoosts = {
+  shadow: 0,
+};
+const labelRequiredHits = {
+  shadow: 4,
+};
+
+
+// ============================================================
+// SETUP
+// ============================================================
+function preload() {
+  poemLines = loadJSON('poems.json');
+}
+
+async function setup() {
+  createCanvas(windowWidth, windowHeight);
+  colorMode(RGB);
+  textFont('Georgia');
+  initHud();
+
+  await initWebcam();
+  await loadTMModel();
+}
+
+function initHud() {
+  hudEl = document.getElementById('hud');
+  hudPredictionsEl = document.getElementById('hud-predictions');
+  hudStateEl = document.getElementById('hud-state');
+  hudConfidenceEl = document.getElementById('hud-confidence');
+  hudActivePanelEl = document.getElementById('hud-active-panel');
+  hudSceneValueEl = document.getElementById('hud-scene-value');
+  hudSceneSubEl = document.getElementById('hud-scene-sub');
+  hudReleaseValueEl = document.getElementById('hud-release-value');
+  hudReleaseSubEl = document.getElementById('hud-release-sub');
+  hudSceneFillEl = document.getElementById('hud-scene-fill');
+  hudReleaseLabelEl = document.getElementById('hud-release-label');
+  hudReleaseFillEl = document.getElementById('hud-release-fill');
+}
+
+async function loadTMModel() {
+  try {
+    model = await tmImage.load(
+      MODEL_URL + 'model.json',
+      MODEL_URL + 'metadata.json'
+    );
+    isModelLoaded = true;
+    console.log('✓ Model loaded', model.getClassLabels());
+    predictLoop();
+  } catch (e) {
+    console.warn('⚠ Failed to load model. Check the local model files:', e);
+  }
+}
+
+async function initWebcam() {
+  webcam = new tmImage.Webcam(224, 224, true);
+  await webcam.setup();
+  await webcam.play();
+}
+
+// -- Recognition loop (runs independently and does not block draw) ---
+async function predictLoop() {
+  if (!isModelLoaded || !webcam) return;
+
+  webcam.update();
+  const predictions = await model.predict(webcam.canvas);
+  predictionSnapshot = predictions
+    .map((p) => ({
+      label: normalizeLabel(p.className),
+      probability: p.probability,
+      boostedProbability:
+        p.probability + (labelBoosts[normalizeLabel(p.className)] || 0),
+    }))
+    .sort((a, b) => b.boostedProbability - a.boostedProbability);
+
+  let maxConf  = 0;
+  let maxLabel = 'background';
+  let effectiveConf = 0;
+  currentLabelConfidence = 0;
+
+  for (let p of predictionSnapshot) {
+    if (p.probability > maxConf) {
+      maxConf  = p.probability;
+    }
+    if (p.boostedProbability > effectiveConf) {
+      effectiveConf = p.boostedProbability;
+      maxLabel = p.label;
+    }
+    if (p.label === currentLabel) {
+      currentLabelConfidence = p.probability;
+    }
+  }
+
+  const activeThreshold = labelThresholds[maxLabel] || triggerThreshold;
+  const activeRequiredHits = labelRequiredHits[maxLabel] || requiredSwitchHits;
+
+  if (
+    effectiveConf >= activeThreshold &&
+    maxLabel !== 'background'
+  ) {
+    clearFrames = 0;
+
+    if (!hasLockedPrediction) {
+      if (maxLabel === candidateLabel) {
+        candidateHits += 1;
+      } else {
+        candidateLabel = maxLabel;
+        candidateHits = 1;
+      }
+
+      if (candidateHits >= activeRequiredHits) {
+        triggerState(maxLabel);
+        currentLabel = maxLabel;
+        hasLockedPrediction = true;
+        candidateLabel = 'background';
+        candidateHits = 0;
+      }
+    } else if (maxLabel === currentLabel) {
+      candidateLabel = 'background';
+      candidateHits = 0;
+    } else {
+      candidateLabel = 'background';
+      candidateHits = 0;
+    }
+  } else if (
+    hasLockedPrediction &&
+    currentLabel !== 'background' &&
+    currentLabelConfidence < releaseThreshold
+  ) {
+    clearFrames += 1;
+    candidateLabel = 'background';
+    candidateHits = 0;
+
+    if (clearFrames >= clearFramesRequired) {
+      hasLockedPrediction = false;
+      currentLabel = 'background';
+      if (activeState !== 'idle') {
+        activeState = 'idle';
+        stateTimer = 0;
+        fadeAlpha = 0;
+      }
+    }
+  } else if (!hasLockedPrediction && effectiveConf < triggerThreshold) {
+    candidateLabel = 'background';
+    candidateHits = 0;
+    clearFrames = 0;
+  } else {
+    clearFrames = 0;
+  }
+
+  confidence = maxConf;
+
+  requestAnimationFrame(predictLoop);
+}
+
+function normalizeLabel(label) {
+  if (!label) return 'background';
+  return LABEL_MAP[label.trim().toLowerCase()] || 'background';
+}
+
+function getPoemLine(label) {
+  const entry = poemLines[label];
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    if (typeof entry.poem === 'string' && entry.poem.trim()) return entry.poem;
+  }
+  if (Array.isArray(entry)) return entry[0] || label;
+  return entry || label;
+}
+
+function getPoemLines(label) {
+  const entry = poemLines[label];
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    const lines = [];
+    if (typeof entry.poem === 'string' && entry.poem.trim()) lines.push(entry.poem);
+    if (typeof entry.concept === 'string' && entry.concept.trim()) lines.push(entry.concept);
+    return lines.length ? lines : [label];
+  }
+  if (Array.isArray(entry)) return entry.length ? entry : [label];
+  if (typeof entry === 'string' && entry.trim()) return [entry];
+  return [label];
+}
+
+function getPoemWords(label) {
+  const entry = poemLines[label];
+  let line = getPoemLine(label);
+
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    line = [entry.poem, entry.concept]
+      .filter((value) => typeof value === 'string' && value.trim())
+      .join(' ');
+  } else if (Array.isArray(entry)) {
+    line = entry.join(' ');
+  }
+
+  const words = line.toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length ? words : [label];
+}
+
+// -- Trigger a new state and call the matching init function ---------
+function triggerState(label) {
+  activeState = label;
+  stateTimer  = 0;
+  fadeAlpha   = 0;
+  initActiveScene(label);
+}
+
+function initActiveScene(label) {
+  if (label === 'book')   initBook();
+  if (label === 'city')   initCity();
+  if (label === 'time')   initTime();
+  if (label === 'memory') initMemory();
+  if (label === 'shadow') initShadow();
+}
+
+
+// ============================================================
+// DRAW - main loop
+// ============================================================
+function draw() {
+  background(0);
+  stateTimer++;
+
+  if (activeState === 'idle') {
+    drawIdle();
+    drawPredictionPanel();
+    return;
+  }
+
+  // Fade in
+  fadeAlpha = min(fadeAlpha + 10, 255);
+
+  // Call the draw function for the active module
+  if (activeState === 'book')   drawBook(stateTimer, fadeAlpha);
+  if (activeState === 'city')   drawCity(stateTimer, fadeAlpha);
+  if (activeState === 'time')   drawTime(stateTimer, fadeAlpha);
+  if (activeState === 'memory') drawMemory(stateTimer, fadeAlpha);
+  if (activeState === 'shadow') drawShadow(stateTimer, fadeAlpha);
+
+  // Show the poem text together with the graphic
+  drawPoemLine();
+
+  if (stateTimer > sceneDuration) resetToScanning();
+
+  drawPredictionPanel();
+}
+
+function resetToScanning() {
+  activeState = 'idle';
+  stateTimer = 0;
+  fadeAlpha = 0;
+  currentLabel = 'background';
+  currentLabelConfidence = 0;
+  confidence = 0;
+  candidateLabel = 'background';
+  candidateHits = 0;
+  hasLockedPrediction = false;
+  clearFrames = 0;
+}
+
+
+// ============================================================
+// English typography inspired by Zhu Yingchun:
+// small size, wide spacing, low opacity, all lowercase
+// ============================================================
+function drawStyledEnglish(str, cx, y, options = {}) {
+  const size    = options.size    || 10;
+  const alpha   = options.alpha   || 48;
+  const spacing = options.spacing || 8;   // Extra spacing between letters (px)
+
+  push();
+  fill(255, alpha);
+  noStroke();
+  textSize(size);
+  textStyle(NORMAL);
+  textAlign(LEFT, CENTER);
+
+  const chars = str.toLowerCase().split('');
+
+  // Measure total width first so the word can be centered
+  let totalW = 0;
+  for (let ch of chars) totalW += textWidth(ch) + spacing;
+  totalW -= spacing;
+
+  let x = cx - totalW / 2;
+  for (let ch of chars) {
+    text(ch, x, y);
+    x += textWidth(ch) + spacing;
+  }
+  pop();
+}
+
+
+// ============================================================
+// IDLE - floating noun cloud
+// ============================================================
+function drawIdle() {
+  const nouns = ['BOOK', 'CITY', 'TIME', 'MEMORY', 'SHADOW'];
+
+  nouns.forEach((noun, i) => {
+    let x = width / 2 + sin(frameCount * 0.012 + i * 1.3) * 140;
+    let y = height / 2 + cos(frameCount * 0.009 + i * 1.0) * 70 + (i - 2) * 65;
+    let a = map(sin(frameCount * 0.025 + i * 0.8), -1, 1, 15, 55);
+
+    push();
+    fill(255, a);
+    noStroke();
+    textSize(18);
+    textAlign(CENTER, CENTER);
+    text(noun, x, y);
+    pop();
+  });
+
+  // Prompt text with larger size, wider spacing, and breathing opacity
+  let promptA = map(sin(frameCount * 0.04), -1, 1, 60, 140);
+  drawStyledEnglish(
+    'place an image before the camera',
+    width / 2,
+    height / 2 + 148,
+    { size: 22, alpha: promptA, spacing: 3 }
+  );
+}
+
+
+// ============================================================
+// Shared poem line fade-in
+// ============================================================
+function drawPoemLine() {
+  const lines = getPoemLines(activeState);
+  if (!lines.length) return;
+
+  const a = min(stateTimer * 8, 120);
+  const baseX = 60;
+  const baseY = height - 86;
+  const lineGap = 22;
+  let longestWidth = 0;
+
+  lines.forEach((line, index) => {
+    push();
+    noStroke();
+    textAlign(LEFT, BOTTOM);
+    if (index === 0) {
+      fill(255, a);
+      textSize(12);
+    } else {
+      fill(255, a * 0.72);
+      textSize(11);
+    }
+    longestWidth = max(longestWidth, textWidth(line));
+    text(line, baseX, baseY + index * lineGap);
+    pop();
+  });
+
+}
+
+
+// ============================================================
+// Debug information
+// ============================================================
+function debugInfo() {
+  push();
+  fill(255, 110);
+  noStroke();
+  textSize(12);
+  textAlign(LEFT, TOP);
+  text(`label: ${currentLabel}  conf: ${nf(confidence, 1, 2)}`, 20, 20);
+  text(`state: ${activeState}  timer: ${stateTimer}`, 20, 38);
+  pop();
+}
+
+function drawPredictionPanel() {
+  if (!hudEl) return;
+
+  const sceneRatio = constrain(stateTimer / sceneDuration, 0, 1);
+  const secondsLeft = max(0, (sceneDuration - stateTimer) / 60);
+  const isReleaseActive = currentLabelConfidence < releaseThreshold;
+  const releaseRatio = isReleaseActive
+    ? constrain(clearFrames / clearFramesRequired, 0, 1)
+    : 0;
+
+  hudPredictionsEl.innerHTML = predictionSnapshot.length
+    ? predictionSnapshot.map((item, index) => `
+        <div class="hud-row${index === 0 ? '' : ' dim'}">
+          <span>${item.label.toUpperCase()}</span>
+          <span>${(item.probability * 100).toFixed(1)}%</span>
+        </div>
+      `).join('')
+    : '<div class="hud-row dim"><span>waiting for prediction...</span><span></span></div>';
+
+  hudStateEl.textContent = activeState;
+  hudConfidenceEl.textContent = `${(confidence * 100).toFixed(1)}%`;
+  hudActivePanelEl.hidden = activeState === 'idle';
+
+  if (activeState === 'idle') return;
+
+  hudSceneValueEl.textContent = `${secondsLeft.toFixed(1)}s`;
+  hudSceneSubEl.textContent = `${Math.round(sceneRatio * 100)}% complete`;
+  hudReleaseValueEl.textContent = isReleaseActive
+    ? `${clearFrames}/${clearFramesRequired}`
+    : 'LOCKED';
+  hudReleaseSubEl.textContent = isReleaseActive
+    ? 'unlocking now'
+    : `${(currentLabelConfidence * 100).toFixed(1)}% / ${Math.round(releaseThreshold * 100)}%`;
+  hudSceneFillEl.style.width = `${sceneRatio * 100}%`;
+  hudReleaseLabelEl.textContent = isReleaseActive ? 'release progress' : 'release locked';
+  hudReleaseFillEl.style.width = `${releaseRatio * 100}%`;
+  hudReleaseFillEl.style.background = isReleaseActive
+    ? 'rgba(140,205,255,0.9)'
+    : 'rgba(255,255,255,0.25)';
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}

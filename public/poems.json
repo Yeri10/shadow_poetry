@@ -1,0 +1,22 @@
+{
+  "book": {
+    "poem": "Among the many generations of books, I have read only a few; I still read in memory.",
+    "concept": "knowledge and language"
+  },
+  "city": {
+    "poem": "Buenos Aires, the city, spreading into suburbs and endless plains.",
+    "concept": "human space and experience"
+  },
+  "time": {
+    "poem": "Time is my Democritus.",
+    "concept": "duration and transformation"
+  },
+  "memory": {
+    "poem": "I still read in memory.",
+    "concept": "inner archive of the world"
+  },
+  "shadow": {
+    "poem": "Now shadow becomes my world.",
+    "concept": "the final abstraction of the visible world"
+  }
+}
