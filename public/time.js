@@ -1,52 +1,504 @@
 // ============================================================
 // TIME animation
-// Letters drift at different speeds, leaving slow temporal residue
+// TIME drifts through dials, residue, and slow temporal echoes
 // ============================================================
 
-let timeTrails = [];
+let timeLetters = [];
+let timeGhosts = [];
+let timeParticles = [];
+let timeArcs = [];
+
+let timeIntroProgress = 0;
+let timeDriftStart = false;
+let timeGlobalTime = 0;
 
 function initTime() {
-  timeTrails = Array.from({ length: 8 }, (_, i) => ({
-    lag: i * 16,
-    alpha: map(i, 0, 7, 240, 10),
-    size: map(i, 0, 7, 122, 84),
-  }));
+  timeIntroProgress = 0;
+  timeDriftStart = false;
+  timeGlobalTime = 0;
+  initTimeLetters();
+  initTimeParticles();
+  initTimeArcs();
+  timeGhosts = [];
 }
 
 function drawTime(stateTimer, fadeAlpha) {
+  timeGlobalTime = millis() * 0.001;
+
   push();
-  translate(width / 2, height / 2 - 20);
-  noStroke();
   textAlign(CENTER, CENTER);
+  textFont('Times New Roman');
+  rectMode(CORNER);
 
-  const letters = [
-    { ch: 'T', xBase: -90, drift: 18, rise: 11, phase: 0.0 },
-    { ch: 'I', xBase: -22, drift: 25, rise: 17, phase: 0.7 },
-    { ch: 'M', xBase:  28, drift: 32, rise: 12, phase: 1.4 },
-    { ch: 'E', xBase:  96, drift: 20, rise: 18, phase: 2.0 },
-  ];
+  drawTimeSoftVignette(fadeAlpha);
+  drawTimeBackgroundParticles(fadeAlpha);
+  drawTimeOrbitalArcs(fadeAlpha);
+  drawTimeMainDial(fadeAlpha);
+  drawTimeSecondaryDials(fadeAlpha);
+  drawTimeSecondHandCloseup(fadeAlpha);
+  drawTimeHourglass(fadeAlpha);
+  updateTimeIntro(stateTimer);
+  updateTimeLetters(fadeAlpha);
+  drawTimeGhosts(fadeAlpha);
+  drawTimeLetters(fadeAlpha);
+  drawTimeDriftLines(fadeAlpha);
+  drawTimeCenterBreath(fadeAlpha);
 
-  for (let i = timeTrails.length - 1; i >= 0; i--) {
-    const layer = timeTrails[i];
-    letters.forEach((letter, index) => {
-      const t = stateTimer - layer.lag;
-      const dx = letter.xBase + sin(t * 0.013 + letter.phase) * letter.drift;
-      const dy = cos(t * 0.009 + letter.phase * 1.3) * letter.rise + sin(t * 0.006 + index) * 6;
-      fill(255, layer.alpha * (fadeAlpha / 255));
-      textSize(layer.size);
-      text(letter.ch, dx, dy);
+  pop();
+}
+
+function initTimeLetters() {
+  timeLetters = [];
+  const word = 'TIME';
+  const spacing = min(width, height) * 0.13;
+  const baseSize = min(width, height) * 0.18;
+
+  for (let i = 0; i < word.length; i++) {
+    const x = width / 2 + (i - 1.5) * spacing;
+    const y = height / 2;
+
+    timeLetters.push({
+      char: word[i],
+      baseX: x,
+      baseY: y,
+      x,
+      y,
+      size: baseSize + random(-8, 8),
+      alpha: 255,
+      noiseX: random(1000),
+      noiseY: random(1000),
+      speedX: random(0.001, 0.0035),
+      speedY: random(0.001, 0.003),
+      scaleX: random(18, 70),
+      scaleY: random(12, 55),
+      phase: random(TWO_PI),
+      rotation: random(-0.04, 0.04),
+      echoGap: random(2, 7),
+      verticalBias: random(-25, 25),
+      horizontalBias: map(i, 0, 3, -18, 18),
     });
   }
+}
 
-  noFill();
-  stroke(255, 18);
-  strokeWeight(0.7);
-  for (let i = 0; i < 14; i++) {
-    const angle = TWO_PI * i / 14 - HALF_PI + stateTimer * 0.002;
-    const r1 = 124;
-    const r2 = i % 2 === 0 ? 154 : 142;
-    line(cos(angle) * r1, sin(angle) * r1, cos(angle) * r2, sin(angle) * r2);
+function initTimeParticles() {
+  timeParticles = [];
+  const count = floor((width * height) / 16000);
+
+  for (let i = 0; i < count; i++) {
+    timeParticles.push({
+      x: random(width),
+      y: random(height),
+      s: random(1, 3),
+      a: random(12, 70),
+      n: random(1000),
+      vx: random(-0.08, 0.08),
+      vy: random(-0.03, 0.03),
+    });
   }
-  pop();
+}
 
+function initTimeArcs() {
+  timeArcs = [];
+  for (let i = 0; i < 12; i++) {
+    timeArcs.push({
+      r: random(min(width, height) * 0.15, min(width, height) * 0.55),
+      start: random(TWO_PI),
+      len: random(0.3, 1.5),
+      speed: random(-0.006, 0.006),
+      alpha: random(10, 50),
+      weight: random(0.5, 1.5),
+    });
+  }
+}
+
+function updateTimeIntro(stateTimer) {
+  if (!timeDriftStart) {
+    timeIntroProgress += 0.006;
+    if (timeIntroProgress >= 1.0) {
+      timeIntroProgress = 1.0;
+      if (stateTimer > 150) timeDriftStart = true;
+    }
+  }
+}
+
+function updateTimeLetters(fadeAlpha) {
+  for (let i = 0; i < timeLetters.length; i++) {
+    const letter = timeLetters[i];
+
+    if (!timeDriftStart) {
+      letter.x = lerp(letter.x, letter.baseX, 0.08);
+      letter.y = lerp(letter.y, letter.baseY, 0.08);
+      letter.alpha = lerp(letter.alpha, 255, 0.08);
+    } else {
+      const dx = (noise(letter.noiseX + frameCount * letter.speedX) - 0.5) * letter.scaleX * 2;
+      const dy = (noise(letter.noiseY + frameCount * letter.speedY) - 0.5) * letter.scaleY * 2;
+
+      const waveX = sin(timeGlobalTime * 0.22 + letter.phase) * 16;
+      const waveY = cos(timeGlobalTime * 0.18 + letter.phase * 1.3) * 10;
+
+      letter.x = letter.baseX + dx + waveX + letter.horizontalBias;
+      letter.y = letter.baseY + dy + waveY + letter.verticalBias * sin(timeGlobalTime * 0.08 + i);
+
+      const alphaNoise = noise(letter.noiseY + frameCount * 0.008 + 100);
+      letter.alpha = map(alphaNoise, 0, 1, 70, 240);
+
+      if (frameCount % 2 === 0) {
+        timeGhosts.push({
+          char: letter.char,
+          x: letter.x,
+          y: letter.y,
+          size: letter.size,
+          alpha: random(16, 70) * (fadeAlpha / 255),
+          decay: random(0.5, 1.2),
+          rot: random(-0.03, 0.03),
+        });
+      }
+    }
+  }
+
+  for (let i = timeGhosts.length - 1; i >= 0; i--) {
+    timeGhosts[i].alpha -= timeGhosts[i].decay;
+    if (timeGhosts[i].alpha <= 0) timeGhosts.splice(i, 1);
+  }
+}
+
+function drawTimeLetters(fadeAlpha) {
+  if (!timeDriftStart) {
+    const introAlpha = timeEaseOutCubic(timeIntroProgress) * 255 * (fadeAlpha / 255);
+    const introSize = min(width, height) * 0.19;
+    const spacing = min(width, height) * 0.13;
+    const chars = 'TIME';
+
+    push();
+    translate(width / 2, height / 2);
+
+    for (let i = 0; i < chars.length; i++) {
+      const x = (i - 1.5) * spacing;
+
+      fill(255, introAlpha * 0.12);
+      textSize(introSize);
+      text(chars[i], x - 6, 4);
+
+      fill(255, introAlpha * 0.22);
+      text(chars[i], x - 3, 2);
+
+      fill(255, introAlpha);
+      text(chars[i], x, 0);
+    }
+    pop();
+  }
+
+  for (let i = 0; i < timeLetters.length; i++) {
+    const letter = timeLetters[i];
+
+    push();
+    translate(letter.x, letter.y);
+    rotate(sin(timeGlobalTime * 0.15 + i) * letter.rotation);
+
+    for (let k = 5; k >= 1; k--) {
+      fill(255, letter.alpha * 0.05 * (fadeAlpha / 255));
+      textSize(letter.size);
+      text(letter.char, -k * letter.echoGap, k * 1.2);
+    }
+
+    fill(255, letter.alpha * 0.25 * (fadeAlpha / 255));
+    textSize(letter.size);
+    text(letter.char, -2, 1);
+
+    fill(255, letter.alpha * (fadeAlpha / 255));
+    textSize(letter.size);
+    text(letter.char, 0, 0);
+
+    pop();
+  }
+}
+
+function drawTimeGhosts(fadeAlpha) {
+  for (const ghost of timeGhosts) {
+    push();
+    translate(ghost.x, ghost.y);
+    rotate(ghost.rot);
+    fill(255, ghost.alpha * (fadeAlpha / 255));
+    textSize(ghost.size);
+    text(ghost.char, 0, 0);
+    pop();
+  }
+}
+
+function drawTimeMainDial(fadeAlpha) {
+  push();
+  translate(width / 2, height / 2);
+  noFill();
+
+  const rBase = min(width, height) * 0.28;
+
+  for (let i = 0; i < 4; i++) {
+    const rr = rBase + i * min(width, height) * 0.06 + sin(timeGlobalTime * 0.7 + i) * 3;
+    stroke(255, (25 + i * 18) * (fadeAlpha / 255));
+    strokeWeight(1);
+    ellipse(0, 0, rr * 2, rr * 2);
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const a = map(i, 0, 60, 0, TWO_PI) + sin(timeGlobalTime * 0.08) * 0.05;
+    const len = i % 5 === 0 ? 18 : 8;
+    const r1 = rBase;
+    const r2 = rBase + len;
+
+    const x1 = cos(a) * r1;
+    const y1 = sin(a) * r1;
+    const x2 = cos(a) * r2;
+    const y2 = sin(a) * r2;
+
+    stroke(255, (i % 5 === 0 ? 90 : 34) * (fadeAlpha / 255));
+    strokeWeight(i % 5 === 0 ? 1.2 : 0.8);
+    line(x1, y1, x2, y2);
+  }
+
+  const secA = -HALF_PI + timeGlobalTime * 0.72;
+  const minA = -HALF_PI + timeGlobalTime * 0.11;
+  const hourA = -HALF_PI + timeGlobalTime * 0.03;
+
+  for (let k = 8; k > 0; k--) {
+    const aa = secA - k * 0.035;
+    stroke(255, (8 + k * 5) * (fadeAlpha / 255));
+    strokeWeight(1);
+    line(0, 0, cos(aa) * rBase * 1.05, sin(aa) * rBase * 1.05);
+  }
+
+  stroke(255, 110 * (fadeAlpha / 255));
+  strokeWeight(3);
+  line(0, 0, cos(hourA) * rBase * 0.42, sin(hourA) * rBase * 0.42);
+
+  stroke(255, 170 * (fadeAlpha / 255));
+  strokeWeight(2);
+  line(0, 0, cos(minA) * rBase * 0.68, sin(minA) * rBase * 0.68);
+
+  stroke(255, 255 * (fadeAlpha / 255));
+  strokeWeight(1.2);
+  line(0, 0, cos(secA) * rBase * 0.96, sin(secA) * rBase * 0.96);
+
+  noStroke();
+  fill(255, 180 * (fadeAlpha / 255));
+  ellipse(0, 0, 9, 9);
+
+  pop();
+}
+
+function drawTimeSecondaryDials(fadeAlpha) {
+  push();
+  noFill();
+
+  const positions = [
+    { x: width * 0.18, y: height * 0.22, r: min(width, height) * 0.08 },
+    { x: width * 0.82, y: height * 0.24, r: min(width, height) * 0.06 },
+    { x: width * 0.2, y: height * 0.78, r: min(width, height) * 0.07 },
+  ];
+
+  for (const pos of positions) {
+    push();
+    translate(pos.x, pos.y);
+
+    for (let i = 0; i < 3; i++) {
+      stroke(255, (18 + i * 14) * (fadeAlpha / 255));
+      ellipse(0, 0, (pos.r + i * 12) * 2);
+    }
+
+    const a = -HALF_PI + timeGlobalTime * timeRandomDialSpeed(pos.x, pos.y);
+
+    stroke(255, 90 * (fadeAlpha / 255));
+    strokeWeight(1);
+    line(0, 0, cos(a) * pos.r * 0.9, sin(a) * pos.r * 0.9);
+
+    pop();
+  }
+
+  pop();
+}
+
+function timeRandomDialSpeed(x, y) {
+  return map(noise(x * 0.001, y * 0.001), 0, 1, 0.15, 0.5);
+}
+
+function drawTimeSecondHandCloseup(fadeAlpha) {
+  const px = width * 0.1;
+  const py = height * 0.12;
+  const pw = width * 0.28;
+  const ph = height * 0.26;
+
+  noStroke();
+  fill(255, 10 * (fadeAlpha / 255));
+  rect(px, py, pw, ph);
+
+  stroke(255, 30 * (fadeAlpha / 255));
+  noFill();
+  rect(px, py, pw, ph);
+
+  push();
+  translate(px + pw * 0.55, py + ph * 0.55);
+
+  const a = -HALF_PI + timeGlobalTime * 1.2;
+
+  for (let i = 0; i < 6; i++) {
+    stroke(255, (12 + i * 10) * (fadeAlpha / 255));
+    strokeWeight(1);
+    arc(0, 0, pw * (0.55 + i * 0.1), pw * (0.55 + i * 0.1), -2.0, 1.0);
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const aa = map(i, 0, 19, -2.1, 1.1);
+    const r1 = pw * 0.18;
+    const r2 = pw * 0.31 + (i % 4 === 0 ? 8 : 0);
+
+    stroke(255, (i % 4 === 0 ? 110 : 40) * (fadeAlpha / 255));
+    line(cos(aa) * r1, sin(aa) * r1, cos(aa) * r2, sin(aa) * r2);
+  }
+
+  for (let k = 10; k > 0; k--) {
+    const aa = a - k * 0.05;
+    stroke(255, (5 + k * 8) * (fadeAlpha / 255));
+    strokeWeight(1);
+    line(-18, 12, cos(aa) * pw * 0.22, sin(aa) * pw * 0.22);
+  }
+
+  stroke(255, 240 * (fadeAlpha / 255));
+  strokeWeight(2);
+  line(-18, 12, cos(a) * pw * 0.22, sin(a) * pw * 0.22);
+
+  noStroke();
+  fill(255, 180 * (fadeAlpha / 255));
+  ellipse(-18, 12, 8, 8);
+
+  pop();
+}
+
+function drawTimeHourglass(fadeAlpha) {
+  const gx = width * 0.84;
+  const gy = height * 0.74;
+  const w = min(width, height) * 0.12;
+  const h = min(width, height) * 0.21;
+
+  push();
+  translate(gx, gy);
+
+  stroke(255, 100 * (fadeAlpha / 255));
+  strokeWeight(1.2);
+  noFill();
+
+  line(-w * 0.5, -h * 0.5, w * 0.5, -h * 0.5);
+  line(-w * 0.5, h * 0.5, w * 0.5, h * 0.5);
+
+  line(-w * 0.5, -h * 0.5, w * 0.12, -h * 0.04);
+  line(w * 0.5, -h * 0.5, -w * 0.12, -h * 0.04);
+  line(-w * 0.5, h * 0.5, w * 0.12, h * 0.04);
+  line(w * 0.5, h * 0.5, -w * 0.12, h * 0.04);
+
+  const flow = map(sin(timeGlobalTime * 0.18), -1, 1, 0.15, 0.85);
+
+  noStroke();
+  fill(255, 55 * (fadeAlpha / 255));
+
+  beginShape();
+  vertex(-w * 0.28, -h * 0.33);
+  vertex(w * 0.28, -h * 0.33);
+  vertex(w * flow * 0.22, -h * 0.12);
+  vertex(-w * flow * 0.22, -h * 0.12);
+  endShape(CLOSE);
+
+  beginShape();
+  vertex(-w * (1 - flow) * 0.24, h * 0.12);
+  vertex(w * (1 - flow) * 0.24, h * 0.12);
+  vertex(w * 0.28, h * 0.33);
+  vertex(-w * 0.28, h * 0.33);
+  endShape(CLOSE);
+
+  stroke(255, 110 * (fadeAlpha / 255));
+  strokeWeight(1);
+  line(0, -h * 0.05, 0, h * 0.08);
+
+  noStroke();
+  fill(255, 100 * (fadeAlpha / 255));
+  ellipse(0, h * 0.14 + sin(timeGlobalTime * 2.2) * 1.5, 4, 4);
+
+  pop();
+}
+
+function drawTimeBackgroundParticles(fadeAlpha) {
+  noStroke();
+  for (const particle of timeParticles) {
+    const nx = (noise(particle.n + frameCount * 0.003) - 0.5) * 0.4;
+    const ny = (noise(particle.n + 500 + frameCount * 0.002) - 0.5) * 0.2;
+
+    particle.x += particle.vx + nx;
+    particle.y += particle.vy + ny;
+
+    if (particle.x < 0) particle.x = width;
+    if (particle.x > width) particle.x = 0;
+    if (particle.y < 0) particle.y = height;
+    if (particle.y > height) particle.y = 0;
+
+    fill(255, particle.a * (fadeAlpha / 255));
+    ellipse(particle.x, particle.y, particle.s, particle.s);
+  }
+}
+
+function drawTimeOrbitalArcs(fadeAlpha) {
+  push();
+  translate(width / 2, height / 2);
+  noFill();
+
+  for (const arcInfo of timeArcs) {
+    stroke(255, arcInfo.alpha * (fadeAlpha / 255));
+    strokeWeight(arcInfo.weight);
+    arc(
+      0,
+      0,
+      arcInfo.r * 2,
+      arcInfo.r * 2,
+      arcInfo.start + timeGlobalTime * arcInfo.speed * 10,
+      arcInfo.start + arcInfo.len + timeGlobalTime * arcInfo.speed * 10
+    );
+  }
+
+  pop();
+}
+
+function drawTimeDriftLines(fadeAlpha) {
+  strokeWeight(1);
+
+  for (let i = 0; i < 11; i++) {
+    const y = map(i, 0, 10, height * 0.1, height * 0.9);
+    const offset = sin(timeGlobalTime * 0.16 + i * 0.7) * 55;
+
+    stroke(255, (8 + i * 2) * (fadeAlpha / 255));
+    line(width * 0.15 + offset, y, width * 0.85 - offset * 0.7, y);
+  }
+}
+
+function drawTimeCenterBreath(fadeAlpha) {
+  push();
+  translate(width / 2, height / 2);
+
+  const r = min(width, height) * 0.12 + sin(timeGlobalTime * 0.5) * 6;
+  noStroke();
+  fill(0, 28 * (fadeAlpha / 255));
+  ellipse(0, 0, r * 2.5, r * 2.5);
+
+  stroke(255, 18 * (fadeAlpha / 255));
+  noFill();
+  ellipse(0, 0, r * 2.9, r * 2.9);
+
+  pop();
+}
+
+function drawTimeSoftVignette(fadeAlpha) {
+  noStroke();
+  for (let i = 0; i < 10; i++) {
+    fill(0, 8 * (fadeAlpha / 255));
+    rect(i * 4, i * 4, width - i * 8, height - i * 8);
+  }
+}
+
+function timeEaseOutCubic(t) {
+  return 1 - pow(1 - t, 3);
 }

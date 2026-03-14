@@ -49,15 +49,20 @@ const triggerThreshold = 0.55;
 const releaseThreshold = 0.35;
 const requiredSwitchHits = 2;
 const clearFramesRequired = 6;
+// Every scene shares one global duration so recognition and HUD timing stay aligned.
 const sceneDuration = 480;
 const labelThresholds = {
   shadow: 0.72,
 };
-const labelBoosts = {
-  shadow: 0,
-};
 const labelRequiredHits = {
   shadow: 4,
+};
+const SCENE_MODULES = {
+  book: { init: initBook, draw: drawBook },
+  city: { init: initCity, draw: drawCity },
+  time: { init: initTime, draw: drawTime },
+  memory: { init: initMemory, draw: drawMemory },
+  shadow: { init: initShadow, draw: drawShadow },
 };
 
 
@@ -79,6 +84,7 @@ async function setup() {
 }
 
 function initHud() {
+  // Cache the HUD nodes once; the render loop only updates their content.
   hudEl = document.getElementById('hud');
   hudPredictionsEl = document.getElementById('hud-predictions');
   hudStateEl = document.getElementById('hud-state');
@@ -118,13 +124,14 @@ async function predictLoop() {
   if (!isModelLoaded || !webcam) return;
 
   webcam.update();
+  // Convert raw model classes into the project's five scene labels, then sort
+  // them so the strongest candidate can drive both triggering and the HUD.
   const predictions = await model.predict(webcam.canvas);
   predictionSnapshot = predictions
     .map((p) => ({
       label: normalizeLabel(p.className),
       probability: p.probability,
-      boostedProbability:
-        p.probability + (labelBoosts[normalizeLabel(p.className)] || 0),
+      boostedProbability: p.probability,
     }))
     .sort((a, b) => b.boostedProbability - a.boostedProbability);
 
@@ -156,6 +163,8 @@ async function predictLoop() {
     clearFrames = 0;
 
     if (!hasLockedPrediction) {
+      // Ask for a short run of consistent hits before switching scenes to keep
+      // the interaction responsive without making it jittery.
       if (maxLabel === candidateLabel) {
         candidateHits += 1;
       } else {
@@ -182,6 +191,8 @@ async function predictLoop() {
     currentLabel !== 'background' &&
     currentLabelConfidence < releaseThreshold
   ) {
+    // Once a scene is locked, release only after the current label stays weak
+    // for several frames, which reopens scanning for the next image.
     clearFrames += 1;
     candidateLabel = 'background';
     candidateHits = 0;
@@ -213,40 +224,44 @@ function normalizeLabel(label) {
   return LABEL_MAP[label.trim().toLowerCase()] || 'background';
 }
 
-function getPoemLine(label) {
+function getPoemEntry(label) {
   const entry = poemLines[label];
   if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-    if (typeof entry.poem === 'string' && entry.poem.trim()) return entry.poem;
+    return {
+      poem: typeof entry.poem === 'string' && entry.poem.trim() ? entry.poem : label,
+      concept: typeof entry.concept === 'string' && entry.concept.trim() ? entry.concept : '',
+    };
   }
-  if (Array.isArray(entry)) return entry[0] || label;
-  return entry || label;
+  if (Array.isArray(entry)) {
+    return {
+      poem: entry[0] || label,
+      concept: '',
+    };
+  }
+  if (typeof entry === 'string' && entry.trim()) {
+    return {
+      poem: entry,
+      concept: '',
+    };
+  }
+  return {
+    poem: label,
+    concept: '',
+  };
+}
+
+function getPoemLine(label) {
+  return getPoemEntry(label).poem;
 }
 
 function getPoemLines(label) {
-  const entry = poemLines[label];
-  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-    const lines = [];
-    if (typeof entry.poem === 'string' && entry.poem.trim()) lines.push(entry.poem);
-    if (typeof entry.concept === 'string' && entry.concept.trim()) lines.push(entry.concept);
-    return lines.length ? lines : [label];
-  }
-  if (Array.isArray(entry)) return entry.length ? entry : [label];
-  if (typeof entry === 'string' && entry.trim()) return [entry];
-  return [label];
+  const entry = getPoemEntry(label);
+  return entry.concept ? [entry.poem, entry.concept] : [entry.poem];
 }
 
 function getPoemWords(label) {
-  const entry = poemLines[label];
-  let line = getPoemLine(label);
-
-  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-    line = [entry.poem, entry.concept]
-      .filter((value) => typeof value === 'string' && value.trim())
-      .join(' ');
-  } else if (Array.isArray(entry)) {
-    line = entry.join(' ');
-  }
-
+  const entry = getPoemEntry(label);
+  const line = [entry.poem, entry.concept].filter(Boolean).join(' ');
   const words = line.toLowerCase().split(/\s+/).filter(Boolean);
   return words.length ? words : [label];
 }
@@ -260,11 +275,9 @@ function triggerState(label) {
 }
 
 function initActiveScene(label) {
-  if (label === 'book')   initBook();
-  if (label === 'city')   initCity();
-  if (label === 'time')   initTime();
-  if (label === 'memory') initMemory();
-  if (label === 'shadow') initShadow();
+  // Each scene owns its own setup routine so visual state stays isolated.
+  const scene = SCENE_MODULES[label];
+  if (scene) scene.init();
 }
 
 
@@ -285,13 +298,10 @@ function draw() {
   fadeAlpha = min(fadeAlpha + 10, 255);
 
   // Call the draw function for the active module
-  if (activeState === 'book')   drawBook(stateTimer, fadeAlpha);
-  if (activeState === 'city')   drawCity(stateTimer, fadeAlpha);
-  if (activeState === 'time')   drawTime(stateTimer, fadeAlpha);
-  if (activeState === 'memory') drawMemory(stateTimer, fadeAlpha);
-  if (activeState === 'shadow') drawShadow(stateTimer, fadeAlpha);
+  const scene = SCENE_MODULES[activeState];
+  if (scene) scene.draw(stateTimer, fadeAlpha);
 
-  // Show the poem text together with the graphic
+  // Keep the poem and concept visible as a shared footer across all scenes.
   drawPoemLine();
 
   if (stateTimer > sceneDuration) resetToScanning();
@@ -300,6 +310,7 @@ function draw() {
 }
 
 function resetToScanning() {
+  // Clear both the scene state and the recognition memory before listening again.
   activeState = 'idle';
   stateTimer = 0;
   fadeAlpha = 0;
@@ -387,8 +398,8 @@ function drawPoemLine() {
   const baseX = 60;
   const baseY = height - 86;
   const lineGap = 22;
-  let longestWidth = 0;
 
+  // First line is the poem; the second line is treated as the concept label.
   lines.forEach((line, index) => {
     push();
     noStroke();
@@ -400,26 +411,10 @@ function drawPoemLine() {
       fill(255, a * 0.72);
       textSize(11);
     }
-    longestWidth = max(longestWidth, textWidth(line));
     text(line, baseX, baseY + index * lineGap);
     pop();
   });
 
-}
-
-
-// ============================================================
-// Debug information
-// ============================================================
-function debugInfo() {
-  push();
-  fill(255, 110);
-  noStroke();
-  textSize(12);
-  textAlign(LEFT, TOP);
-  text(`label: ${currentLabel}  conf: ${nf(confidence, 1, 2)}`, 20, 20);
-  text(`state: ${activeState}  timer: ${stateTimer}`, 20, 38);
-  pop();
 }
 
 function drawPredictionPanel() {
@@ -432,14 +427,9 @@ function drawPredictionPanel() {
     ? constrain(clearFrames / clearFramesRequired, 0, 1)
     : 0;
 
-  hudPredictionsEl.innerHTML = predictionSnapshot.length
-    ? predictionSnapshot.map((item, index) => `
-        <div class="hud-row${index === 0 ? '' : ' dim'}">
-          <span>${item.label.toUpperCase()}</span>
-          <span>${(item.probability * 100).toFixed(1)}%</span>
-        </div>
-      `).join('')
-    : '<div class="hud-row dim"><span>waiting for prediction...</span><span></span></div>';
+  // The HUD structure lives in HTML/CSS. This function only pushes live values
+  // into the existing nodes.
+  renderPredictionRows(predictionSnapshot);
 
   hudStateEl.textContent = activeState;
   hudConfidenceEl.textContent = `${(confidence * 100).toFixed(1)}%`;
@@ -463,6 +453,44 @@ function drawPredictionPanel() {
     : 'rgba(255,255,255,0.25)';
 }
 
+function renderPredictionRows(items) {
+  if (!hudPredictionsEl) return;
+
+  hudPredictionsEl.replaceChildren();
+
+  if (!items.length) {
+    hudPredictionsEl.appendChild(createHudRow('waiting for prediction...', '', true));
+    return;
+  }
+
+  items.forEach((item, index) => {
+    hudPredictionsEl.appendChild(
+      createHudRow(item.label.toUpperCase(), `${(item.probability * 100).toFixed(1)}%`, index !== 0)
+    );
+  });
+}
+
+function createHudRow(label, value, isDim) {
+  const row = document.createElement('div');
+  row.className = `hud-row${isDim ? ' dim' : ''}`;
+
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement('span');
+  valueEl.textContent = value;
+
+  row.append(labelEl, valueEl);
+  return row;
+}
+
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+}
+
+function keyPressed() {
+  if (key === 'f' || key === 'F') {
+    fullscreen(!fullscreen());
+    return false;
+  }
 }
