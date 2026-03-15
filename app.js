@@ -11,7 +11,7 @@ const PORT = 3000;
 
 app.use(express.static(path.join(__dirname, "public")));
 
-// 获取本机局域网 IP
+// Resolve the first non-internal IPv4 address for local network access logs.
 function getLanIP() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {

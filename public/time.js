@@ -30,6 +30,8 @@ function drawTime(stateTimer, fadeAlpha) {
   textFont('Times New Roman');
   rectMode(CORNER);
 
+  // The scene builds from ambient systems into readable clock imagery, then
+  // lets the word TIME loosen and drift once the intro has settled.
   drawTimeSoftVignette(fadeAlpha);
   drawTimeBackgroundParticles(fadeAlpha);
   drawTimeOrbitalArcs(fadeAlpha);
@@ -53,6 +55,8 @@ function initTimeLetters() {
   const spacing = min(width, height) * 0.13;
   const baseSize = min(width, height) * 0.18;
 
+  // Store each letter as a small motion system so the intro can begin in a
+  // stable lockup and later peel apart into slow temporal drift.
   for (let i = 0; i < word.length; i++) {
     const x = width / 2 + (i - 1.5) * spacing;
     const y = height / 2;
@@ -84,6 +88,8 @@ function initTimeParticles() {
   timeParticles = [];
   const count = floor((width * height) / 16000);
 
+  // Background particles stay sparse and slow so they read as temporal dust,
+  // not as a competing star field.
   for (let i = 0; i < count; i++) {
     timeParticles.push({
       x: random(width),
@@ -99,6 +105,8 @@ function initTimeParticles() {
 
 function initTimeArcs() {
   timeArcs = [];
+  // Offset arc speeds and lengths so the dial field feels layered rather than
+  // mechanically synchronized.
   for (let i = 0; i < 12; i++) {
     timeArcs.push({
       r: random(min(width, height) * 0.15, min(width, height) * 0.55),
@@ -130,6 +138,8 @@ function updateTimeLetters(fadeAlpha) {
       letter.y = lerp(letter.y, letter.baseY, 0.08);
       letter.alpha = lerp(letter.alpha, 255, 0.08);
     } else {
+      // Noise handles the main displacement while slower sine waves keep the
+      // movement from feeling purely random.
       const dx = (noise(letter.noiseX + frameCount * letter.speedX) - 0.5) * letter.scaleX * 2;
       const dy = (noise(letter.noiseY + frameCount * letter.speedY) - 0.5) * letter.scaleY * 2;
 
@@ -142,6 +152,8 @@ function updateTimeLetters(fadeAlpha) {
       const alphaNoise = noise(letter.noiseY + frameCount * 0.008 + 100);
       letter.alpha = map(alphaNoise, 0, 1, 70, 240);
 
+      // Leave fading traces behind the drifting letters so the scene keeps a
+      // readable temporal residue after the lockup breaks apart.
       if (frameCount % 2 === 0) {
         timeGhosts.push({
           char: letter.char,
@@ -172,6 +184,8 @@ function drawTimeLetters(fadeAlpha) {
     push();
     translate(width / 2, height / 2);
 
+    // Draw a short stacked echo first so the word lands with some depth before
+    // the drift systems start modifying each letter independently.
     for (let i = 0; i < chars.length; i++) {
       const x = (i - 1.5) * spacing;
 
@@ -195,6 +209,8 @@ function drawTimeLetters(fadeAlpha) {
     translate(letter.x, letter.y);
     rotate(sin(timeGlobalTime * 0.15 + i) * letter.rotation);
 
+    // Keep a few soft offset copies behind each letter so the final word feels
+    // unstable without becoming unreadable.
     for (let k = 5; k >= 1; k--) {
       fill(255, letter.alpha * 0.05 * (fadeAlpha / 255));
       textSize(letter.size);
@@ -232,6 +248,8 @@ function drawTimeMainDial(fadeAlpha) {
 
   const rBase = min(width, height) * 0.28;
 
+  // Concentric rings and tick marks establish a stable clock face before the
+  // surrounding fragments start competing for attention.
   for (let i = 0; i < 4; i++) {
     const rr = rBase + i * min(width, height) * 0.06 + sin(timeGlobalTime * 0.7 + i) * 3;
     stroke(255, (25 + i * 18) * (fadeAlpha / 255));
@@ -299,6 +317,8 @@ function drawTimeSecondaryDials(fadeAlpha) {
     push();
     translate(pos.x, pos.y);
 
+    // Secondary dials move at location-derived speeds so they feel related to
+    // the main clock, but not locked to the same rhythm.
     for (let i = 0; i < 3; i++) {
       stroke(255, (18 + i * 14) * (fadeAlpha / 255));
       ellipse(0, 0, (pos.r + i * 12) * 2);
@@ -326,6 +346,8 @@ function drawTimeSecondHandCloseup(fadeAlpha) {
   const pw = width * 0.28;
   const ph = height * 0.26;
 
+  // This inset reframes the second hand as a technical detail, adding a tighter
+  // instrument view alongside the large central clock.
   noStroke();
   fill(255, 10 * (fadeAlpha / 255));
   rect(px, py, pw, ph);
@@ -381,6 +403,8 @@ function drawTimeHourglass(fadeAlpha) {
   push();
   translate(gx, gy);
 
+  // A simple hourglass adds a second timekeeping symbol so the scene reads as a
+  // field of temporal instruments rather than a single clock illustration.
   stroke(255, 100 * (fadeAlpha / 255));
   strokeWeight(1.2);
   noFill();
@@ -426,6 +450,8 @@ function drawTimeHourglass(fadeAlpha) {
 function drawTimeBackgroundParticles(fadeAlpha) {
   noStroke();
   for (const particle of timeParticles) {
+    // Noise nudges each particle off its base velocity so the field drifts in
+    // loose currents instead of straight lines.
     const nx = (noise(particle.n + frameCount * 0.003) - 0.5) * 0.4;
     const ny = (noise(particle.n + 500 + frameCount * 0.002) - 0.5) * 0.2;
 
@@ -447,6 +473,8 @@ function drawTimeOrbitalArcs(fadeAlpha) {
   translate(width / 2, height / 2);
   noFill();
 
+  // These arcs extend the clock motif outward, giving the scene a broader
+  // orbital structure around the word.
   for (const arcInfo of timeArcs) {
     stroke(255, arcInfo.alpha * (fadeAlpha / 255));
     strokeWeight(arcInfo.weight);
@@ -466,6 +494,8 @@ function drawTimeOrbitalArcs(fadeAlpha) {
 function drawTimeDriftLines(fadeAlpha) {
   strokeWeight(1);
 
+  // Horizontal drifts flatten the composition slightly, like scan lines or
+  // layered timeline marks passing behind the typography.
   for (let i = 0; i < 11; i++) {
     const y = map(i, 0, 10, height * 0.1, height * 0.9);
     const offset = sin(timeGlobalTime * 0.16 + i * 0.7) * 55;
@@ -479,6 +509,8 @@ function drawTimeCenterBreath(fadeAlpha) {
   push();
   translate(width / 2, height / 2);
 
+  // A dark breathing core stops the center from becoming visually flat once
+  // the rings, text, and echoes accumulate.
   const r = min(width, height) * 0.12 + sin(timeGlobalTime * 0.5) * 6;
   noStroke();
   fill(0, 28 * (fadeAlpha / 255));
@@ -493,6 +525,8 @@ function drawTimeCenterBreath(fadeAlpha) {
 
 function drawTimeSoftVignette(fadeAlpha) {
   noStroke();
+  // Build the vignette with repeated inset rectangles so the edges stay soft
+  // without introducing gradients or image assets.
   for (let i = 0; i < 10; i++) {
     fill(0, 8 * (fadeAlpha / 255));
     rect(i * 4, i * 4, width - i * 8, height - i * 8);
