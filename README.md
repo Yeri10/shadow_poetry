@@ -24,19 +24,22 @@ Based on this idea, we extracted key nouns from the poem and reorganized them in
 In our project, we attempt to **visualise memory inside the mind**.  
 Objects detected by the camera are translated into these poetic nouns and trigger corresponding visual behaviours.
 
-For example:
-
-- **Book** → text unfolds like pages
-- **City** → letters form architectural structures
-- **Time** → text slowly drifts across the screen
-- **Memory** → text becomes blurred and duplicated
-- **Shadow** → text transforms into black silhouettes
 
 Through this interaction, the system converts real-world objects into poetic language and visual motion, allowing viewers to interact with a computational representation of memory.
 
 The project explores how machine perception can transform physical reality into poetic abstraction.
 
 
+## Technical Approach
+
+The system combines **machine learning–based image recognition with generative visual rendering**.
+
+Image datasets were collected and trained using **Google Teachable Machine**, allowing the model to classify several predefined visual categories: **Book, City, Time, Memory, and Shadow**. The trained model is exported and integrated into the project using **ml5.js**, enabling real-time image recognition through the webcam.
+
+When the camera detects an image corresponding to one of the trained categories, the system maps the recognition result to a specific generative visual behaviour implemented in **p5.js**.
+
+
+This pipeline allows real-world visual input to be translated into generative poetic visuals, forming an interactive system that connects **machine perception, typography, and visual abstraction**.
 
 ## Instructions (How to Run)
 
