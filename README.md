@@ -7,8 +7,7 @@ March 2026
 
 ## Video
 
-Click the LINK to watch the demo.
-https://youtu.be/dySaQcSjUwI
+[![Shadow Poetry Demo](Media/Image/process_finalvisual.jpg)](https://youtu.be/dySaQcSjUwI)
 
 
 ## Blurb (Project Description)
