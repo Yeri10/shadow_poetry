@@ -106,7 +106,6 @@ async function loadTMModel() {
       MODEL_URL + 'metadata.json'
     );
     isModelLoaded = true;
-    console.log('✓ Model loaded', model.getClassLabels());
     predictLoop();
   } catch (e) {
     console.warn('⚠ Failed to load model. Check the local model files:', e);
@@ -131,9 +130,8 @@ async function predictLoop() {
     .map((p) => ({
       label: normalizeLabel(p.className),
       probability: p.probability,
-      boostedProbability: p.probability,
     }))
-    .sort((a, b) => b.boostedProbability - a.boostedProbability);
+    .sort((a, b) => b.probability - a.probability);
 
   let maxConf  = 0;
   let maxLabel = 'background';
@@ -144,8 +142,8 @@ async function predictLoop() {
     if (p.probability > maxConf) {
       maxConf  = p.probability;
     }
-    if (p.boostedProbability > effectiveConf) {
-      effectiveConf = p.boostedProbability;
+    if (p.probability > effectiveConf) {
+      effectiveConf = p.probability;
       maxLabel = p.label;
     }
     if (p.label === currentLabel) {
