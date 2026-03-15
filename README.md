@@ -10,31 +10,12 @@ March 2026
 
 This project is inspired by a passage from *Elogio de la sombra* (*In Praise of Darkness*) by Jorge Luis Borges.
 
-> Old age may be the time of our happiness.  
-> In those tiny accumulated moments of time,  
-> what we remember may eventually be forgotten,  
-> and perhaps we will reach our center  
-> and finally know who we are.
+![Concept diagram](Media/Image/process_poem_annotation.jpg)
 
 In this poem Borges describes how, as vision gradually fades, the world transforms from clear physical reality into blurred shadows. When sight weakens, memory and language become the primary ways through which the world is perceived.
 
 Based on this idea, we extracted key nouns from the poem and reorganized them into a conceptual structure:
-
-External World → Internal World → Abstract World
-
-The extracted nouns include:
-
-Book  City  Time  Memory  Shadow  
-
-
-
-These nouns represent different layers of perception:
-
-- **Book** represents knowledge and language.
-- **City** represents the physical world and lived space.
-- **Time** represents human experience.
-- **Memory** represents the internal reconstruction of reality.
-- **Shadow** represents the final abstract form of perception.
+![Concept diagram](Media/Image/process_concept_diagram.jpg)
 
 In our project, we attempt to **visualise memory inside the mind**.  
 Objects detected by the camera are translated into these poetic nouns and trigger corresponding visual behaviours.
