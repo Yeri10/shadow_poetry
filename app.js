@@ -1,14 +1,14 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const fileName = fileURLToPath(import.meta.url);
+const dirName = path.dirname(fileName);
 
-const app  = express();
-const PORT = 3000;
+const app = express();
+const port = 3000;
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(dirName, "public")));
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running (local): http://localhost:${PORT}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running (local): http://localhost:${port}`);
 });

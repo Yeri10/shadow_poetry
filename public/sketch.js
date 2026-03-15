@@ -5,8 +5,11 @@
 // ============================================================
 
 // -- 1. Local Teachable Machine model --------------------------------
-const MODEL_URL = './models/79ZGnRrSq/';
-const LABEL_MAP = {
+// This model classifies webcam input into the five project scenes:
+// book, city, time, memory, and shadow.
+const modelUrl = './models/79ZGnRrSq/';
+
+const labelMap = {
   book: 'book',
   city: 'city',
   time: 'time',
@@ -57,7 +60,7 @@ const labelThresholds = {
 const labelRequiredHits = {
   shadow: 4,
 };
-const SCENE_MODULES = {
+const sceneModules = {
   book: { init: initBook, draw: drawBook },
   city: { init: initCity, draw: drawCity },
   time: { init: initTime, draw: drawTime },
@@ -102,8 +105,8 @@ function initHud() {
 async function loadTMModel() {
   try {
     model = await tmImage.load(
-      MODEL_URL + 'model.json',
-      MODEL_URL + 'metadata.json'
+      modelUrl + 'model.json',
+      modelUrl + 'metadata.json'
     );
     isModelLoaded = true;
     predictLoop();
@@ -219,7 +222,7 @@ async function predictLoop() {
 
 function normalizeLabel(label) {
   if (!label) return 'background';
-  return LABEL_MAP[label.trim().toLowerCase()] || 'background';
+  return labelMap[label.trim().toLowerCase()] || 'background';
 }
 
 function getPoemEntry(label) {
@@ -274,7 +277,7 @@ function triggerState(label) {
 
 function initActiveScene(label) {
   // Each scene owns its own setup routine so visual state stays isolated.
-  const scene = SCENE_MODULES[label];
+  const scene = sceneModules[label];
   if (scene) scene.init();
 }
 
@@ -296,7 +299,7 @@ function draw() {
   fadeAlpha = min(fadeAlpha + 10, 255);
 
   // Call the draw function for the active module
-  const scene = SCENE_MODULES[activeState];
+  const scene = sceneModules[activeState];
   if (scene) scene.draw(stateTimer, fadeAlpha);
 
   // Keep the poem and concept visible as a shared footer across all scenes.
