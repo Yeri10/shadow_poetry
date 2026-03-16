@@ -1,7 +1,7 @@
 # Shadow Poetry
 
 ## Author
-Yirun Ye & Shuran Zhang 
+Yerie Ye & Shuran Zhang 
 
 March 2026
 
